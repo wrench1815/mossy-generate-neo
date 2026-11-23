@@ -12,6 +12,18 @@ It is txt2img only. img2img is unchanged.
 - Ollama running where Forge can reach it. The default address is `http://127.0.0.1:11434`.
 - At least one model already pulled in Ollama. This extension does not download models.
 
+Pull a local instruct model. Gemma writes the prose. Qwen holds the caption JSON more tightly. The abliterated tags are the same bases with the refusal filter removed, so they take an adult brief that the stock model refuses. That surgery also makes the JSON a bit less reliable. A smaller model often fails it outright. The error line shows that failure.
+
+| Brief | Pull | About |
+| --- | --- | --- |
+| Adult | `huihui_ai/gemma-4-abliterated:12b` | Abliterated Gemma 4. Best prose of this set. About 7.6 GB. |
+| Adult, and the 12B misses the JSON | `huihui_ai/qwen3-abliterated:14b` | Abliterated Qwen3. Stricter format, flatter prose. About 9 GB. |
+| Ordinary | `gemma4:12b` | Stock Gemma 4. Same prose, refusals left on. |
+| Ordinary, and Gemma misses the JSON | `qwen3:14b` | Stock Qwen3. |
+| Ordinary, if it fits | `gpt-oss:20b` | Stock. About 14 GB. |
+
+`huihui_ai/gemma-4-abliterated:31b` is the step up from the 12B when you have about 24 GB free. The Model menu lists whatever that Ollama server already has.
+
 No extra Python packages and no `install.py`. Gradio and the standard library are enough.
 
 ## Install
