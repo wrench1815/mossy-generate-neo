@@ -36,6 +36,10 @@
     border-color: var(--input-border-color-hover) !important;
 }
 
+#mossy_generate_neo .mossy-brief-actions button:disabled {
+    opacity: 0.55;
+}
+
 #mossy_generate_neo .mossy-actions {
     flex-wrap: wrap;
     align-items: flex-end;
@@ -158,11 +162,34 @@
     min-width: 0 !important;
 }
 
-#mossy_generate_neo .mossy-search-row > button.mossy-fit {
+#mossy_generate_neo .mossy-search-row > button.mossy-fit,
+#mossy_generate_neo .mossy-page-row > button.mossy-fit {
     flex: 0 0 auto !important;
     width: auto !important;
     min-width: 0 !important;
     padding: 0 10px;
+}
+
+#mossy_generate_neo .mossy-page-row {
+    flex-wrap: nowrap;
+    align-items: center;
+    gap: 6px;
+}
+
+#mossy_generate_neo .mossy-page-label {
+    flex: 0 0 auto;
+    width: auto;
+    min-width: 4.5em;
+    text-align: center;
+}
+
+#mossy_generate_neo .mossy-page-label p {
+    margin: 0;
+}
+
+#mossy_generate_neo .mossy-card-list {
+    max-height: 16rem;
+    overflow-y: auto;
 }
 
 #mossy_generate_neo .mossy-card-row {

@@ -7,7 +7,7 @@ import traceback
 import urllib.error
 import urllib.request
 from contextlib import contextmanager
-from datetime import datetime
+from datetime import datetime, timedelta
 from importlib.util import module_from_spec, spec_from_file_location
 from pathlib import Path
 
@@ -24,7 +24,7 @@ OLLAMA = "http://127.0.0.1:11434"
 CAPTION_RULE = 'This call is caption-only and must output exactly {"caption":"...","title":"..."}. The title is a few words.'
 REFRESH_ICON = "\U0001f504"
 DELETE_ICON = "\U0001f5d1\ufe0f"
-CARD_CAP = 20
+PAGE_SIZE = 20
 
 
 def log(message):
@@ -43,7 +43,7 @@ def set_log(enabled):
     _log_enabled = bool(enabled)
 
 
-_log_enabled = True
+_log_enabled = False
 
 _spec = spec_from_file_location(
     "mossy_compile_prompt",
@@ -130,11 +130,14 @@ def delete_favorite_row(favorite_id, path=None):
         conn.execute("DELETE FROM favorites WHERE id = ?", (str(favorite_id),))
 
 
-def search_favorites(query, path=None):
+def search_favorites(query, path=None, page=0):
+    page = max(0, int(page))
+    offset = page * PAGE_SIZE
     with database(path) as conn:
         if not (query or "").strip():
             return conn.execute(
-                "SELECT id, title, prompt FROM favorites ORDER BY id DESC LIMIT " + str(CARD_CAP)
+                "SELECT id, title, prompt FROM favorites ORDER BY id DESC LIMIT ? OFFSET ?",
+                (PAGE_SIZE, offset),
             ).fetchall()
         match = fts_match(query)
         if not match:
@@ -146,10 +149,30 @@ def search_favorites(query, path=None):
             JOIN favorites ON favorites.rowid = favorites_fts.rowid
             WHERE favorites_fts MATCH ?
             ORDER BY favorites.id DESC
-            LIMIT """ + str(CARD_CAP) + """
+            LIMIT ? OFFSET ?
             """,
-            (match,),
+            (match, PAGE_SIZE, offset),
         ).fetchall()
+
+
+def favorite_count(query, path=None):
+    with database(path) as conn:
+        if not (query or "").strip():
+            return conn.execute("SELECT COUNT(*) FROM favorites").fetchone()[0]
+        match = fts_match(query)
+        if not match:
+            return 0
+        return conn.execute(
+            "SELECT COUNT(*) FROM favorites_fts WHERE favorites_fts MATCH ?",
+            (match,),
+        ).fetchone()[0]
+
+
+def page_span(total, page):
+    if total <= 0:
+        return 0, 0
+    pages = (total + PAGE_SIZE - 1) // PAGE_SIZE
+    return min(max(0, int(page)), pages - 1), pages
 
 
 def favorite_prompt(favorite_id, path=None):
@@ -163,31 +186,51 @@ def favorite_prompt(favorite_id, path=None):
     return None if row is None else row[0]
 
 
-def favorite_rows(query, path=None):
+def favorite_rows(query, path=None, page=0):
     rows = []
-    for favorite_id, title, prompt in search_favorites(query, path):
+    for favorite_id, title, prompt in search_favorites(query, path, page):
         line = (prompt or "").strip().split("\n", 1)[0]
         rows.append((favorite_id, f"{title}\n{line}" if line else title))
     return rows
 
 
-def slot_values(query):
-    shown = favorite_rows(query)
+def empty_note(query, total):
+    if total:
+        return ""
+    if (query or "").strip():
+        return "No matches"
+    return "No favorites"
+
+
+def slot_values(query, page=0, path=None):
+    total = favorite_count(query, path)
+    page, pages = page_span(total, page)
+    shown = favorite_rows(query, path, page) if total else []
     ids = [favorite_id for favorite_id, _label in shown]
     row_updates = []
     card_updates = []
-    for index in range(CARD_CAP):
+    for index in range(PAGE_SIZE):
         if index < len(shown):
             row_updates.append(gr.update(visible=True))
             card_updates.append(gr.update(value=shown[index][1]))
         else:
             row_updates.append(gr.update(visible=False))
             card_updates.append(gr.update(value=""))
-    return (ids, *row_updates, *card_updates)
+    note = empty_note(query, total)
+    return (
+        ids,
+        page,
+        gr.update(value="" if total == 0 else f"{page + 1} / {pages}", visible=total > 0),
+        gr.update(interactive=page > 0),
+        gr.update(interactive=pages > 0 and page < pages - 1),
+        gr.update(value=note, visible=total == 0),
+        *row_updates,
+        *card_updates,
+    )
 
 
 def skipped_list():
-    return (gr.skip(),) * (1 + CARD_CAP * 2)
+    return (gr.skip(),) * (6 + PAGE_SIZE * 2)
 
 
 def ollama_base(url):
@@ -317,7 +360,7 @@ def save_favorite(title, prompt, search):
         log_exc(f"save failed: {error}")
         return (error_update(str(error)), *skipped_list())
     log(f"saved {favorite_id} title={title!r}")
-    return (error_update(f"Saved {favorite_id}"), *slot_values(search))
+    return (error_update(f"Saved {favorite_id}"), *slot_values(search, 0))
 
 
 def apply_favorite(favorite_id):
@@ -337,7 +380,7 @@ def use_at(index, id_list):
     return apply_favorite(favorite_id)
 
 
-def delete_at(index, id_list, search):
+def delete_at(index, id_list, search, page):
     favorite_id = id_list[index] if id_list and index < len(id_list) else None
     if not favorite_id:
         log(f"favorite missing: slot {index}")
@@ -348,13 +391,13 @@ def delete_at(index, id_list, search):
         log_exc(f"delete failed: {error}")
         return (error_update(str(error)), *skipped_list())
     log(f"deleted {favorite_id}")
-    return (error_update("Deleted"), *slot_values(search))
+    return (error_update("Deleted"), *slot_values(search, page))
 
 
 def run_search(text):
     log(f"search {text!r}")
     try:
-        return slot_values(text)
+        return slot_values(text, 0)
     except Exception as error:
         log_exc(f"search failed: {text!r}: {error}")
         return skipped_list()
@@ -363,7 +406,7 @@ def run_search(text):
 def clear_search():
     log("search cleared")
     try:
-        return ("", *slot_values(""))
+        return ("", *slot_values("", 0))
     except Exception as error:
         log_exc(f"search failed: '': {error}")
         return (gr.skip(), *skipped_list())
@@ -420,7 +463,7 @@ class Script(scripts.Script):
                 recheck = ToolButton(REFRESH_ICON, elem_id="mossy_recheck", tooltip="Recheck")
                 with gr.Column(elem_classes=["mossy-checks"], scale=0, min_width=0):
                     keep_alive = gr.Checkbox(label="Keep alive", value=False, elem_id="mossy_keep_alive")
-                    log_toggle = gr.Checkbox(label="Log", value=True, elem_id="mossy_log")
+                    log_toggle = gr.Checkbox(label="Log", value=False, elem_id="mossy_log")
                 temperature = gr.Slider(
                     label="Temperature",
                     minimum=0,
@@ -438,8 +481,11 @@ class Script(scripts.Script):
                 visible=bool(error),
                 elem_id="mossy_error",
             )
-            shown = favorite_rows("")
+            total = favorite_count("")
+            page_index, pages = page_span(total, 0)
+            shown = favorite_rows("", page=page_index) if total else []
             ids = gr.State([favorite_id for favorite_id, _label in shown])
+            page_state = gr.State(page_index)
             with gr.Accordion("Favorites", open=False):
                 with gr.Row(elem_classes=["mossy-search-row"]):
                     search = gr.Textbox(
@@ -449,28 +495,61 @@ class Script(scripts.Script):
                     )
                     find = gr.Button("Search", elem_id="mossy_find", elem_classes=["mossy-fit"])
                     clear = gr.Button("Clear", elem_id="mossy_clear", elem_classes=["mossy-fit"])
+                with gr.Row(elem_classes=["mossy-page-row"]):
+                    prev = gr.Button(
+                        "Previous",
+                        variant="secondary",
+                        elem_classes=["mossy-fit"],
+                        interactive=False,
+                        elem_id="mossy_prev",
+                    )
+                    page_label = gr.Markdown(
+                        "" if total == 0 else f"{page_index + 1} / {pages}",
+                        visible=total > 0,
+                        elem_classes=["mossy-page-label"],
+                        elem_id="mossy_page_label",
+                    )
+                    next_page = gr.Button(
+                        "Next",
+                        variant="secondary",
+                        elem_classes=["mossy-fit"],
+                        interactive=pages > 1,
+                        elem_id="mossy_next",
+                    )
+                empty = gr.Markdown(
+                    empty_note("", total),
+                    visible=total == 0,
+                    elem_id="mossy_empty",
+                )
                 card_rows = []
                 cards = []
                 deletes = []
-                for index in range(CARD_CAP):
-                    visible = index < len(shown)
-                    with gr.Row(visible=visible, elem_classes=["mossy-card-row"]) as card_row:
-                        cards.append(
-                            gr.Button(
-                                shown[index][1] if visible else "",
-                                elem_classes=["mossy-card"],
+                with gr.Column(elem_classes=["mossy-card-list"]):
+                    for index in range(PAGE_SIZE):
+                        visible = index < len(shown)
+                        with gr.Row(visible=visible, elem_classes=["mossy-card-row"]) as card_row:
+                            cards.append(
+                                gr.Button(
+                                    shown[index][1] if visible else "",
+                                    elem_classes=["mossy-card"],
+                                )
                             )
-                        )
-                        deletes.append(ToolButton(DELETE_ICON, tooltip="Delete favorite"))
-                    card_rows.append(card_row)
+                            deletes.append(ToolButton(DELETE_ICON, tooltip="Delete favorite"))
+                        card_rows.append(card_row)
 
-        list_outputs = [ids, *card_rows, *cards]
+        list_outputs = [ids, page_state, page_label, prev, next_page, empty, *card_rows, *cards]
         log_toggle.change(set_log, inputs=[log_toggle])
         recheck.click(load_models, inputs=[ollama_url], outputs=[model_dropdown, error_box])
         write.click(
+            lambda: gr.update(interactive=False),
+            outputs=[write],
+        ).then(
             write_prompt,
             inputs=[brief, model_dropdown, keep_alive, temperature, ollama_url],
             outputs=[prompt_component, title, error_box],
+        ).then(
+            lambda: gr.update(interactive=True),
+            outputs=[write],
         )
         save.click(
             save_favorite,
@@ -480,15 +559,25 @@ class Script(scripts.Script):
         find.click(run_search, inputs=[search], outputs=list_outputs)
         search.submit(run_search, inputs=[search], outputs=list_outputs)
         clear.click(clear_search, outputs=[search, *list_outputs])
-        for index in range(CARD_CAP):
+        prev.click(
+            lambda query, current: slot_values(query, current - 1),
+            inputs=[search, page_state],
+            outputs=list_outputs,
+        )
+        next_page.click(
+            lambda query, current: slot_values(query, current + 1),
+            inputs=[search, page_state],
+            outputs=list_outputs,
+        )
+        for index in range(PAGE_SIZE):
             cards[index].click(
                 lambda id_list, index=index: use_at(index, id_list),
                 inputs=[ids],
                 outputs=[prompt_component, error_box],
             )
             deletes[index].click(
-                lambda id_list, text, index=index: delete_at(index, id_list, text),
-                inputs=[ids, search],
+                lambda id_list, text, current, index=index: delete_at(index, id_list, text, current),
+                inputs=[ids, search, page_state],
                 outputs=[error_box, *list_outputs],
             )
 
@@ -522,6 +611,26 @@ def _self_check():
         assert search_favorites("tea", path) == []
         assert search_favorites("wooden", path) == []
         assert favorite_prompt(first, path) is None
+    with tempfile.TemporaryDirectory() as directory:
+        path = Path(directory) / "favorites.sqlite"
+        moment = datetime(2026, 11, 23, 16, 0, 0)
+        made = [
+            insert_favorite(f"item {index}", f"prompt {index} tea", path, moment + timedelta(seconds=index))
+            for index in range(PAGE_SIZE + 1)
+        ]
+        first_page = search_favorites("", path, 0)
+        second_page = search_favorites("", path, 1)
+        assert len(first_page) == PAGE_SIZE
+        assert [row[0] for row in first_page] == list(reversed(made[1:]))
+        assert [row[0] for row in second_page] == [made[0]]
+        assert favorite_count("", path) == PAGE_SIZE + 1
+        assert favorite_count("tea", path) == PAGE_SIZE + 1
+        assert favorite_count("***", path) == 0
+        assert search_favorites("tea", path, 1)[0][0] == made[0]
+        assert empty_note("", 0) == "No favorites"
+        assert empty_note("tea", 0) == "No matches"
+        assert page_span(0, 3) == (0, 0)
+        assert page_span(PAGE_SIZE + 1, 9) == (1, 2)
     print("mossy self-check ok")
 
 

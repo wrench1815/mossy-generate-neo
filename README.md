@@ -33,16 +33,16 @@ Under the positive prompt:
 - **Model** — models reported by that Ollama server. The first one is selected. The dropdown stays disabled when the server cannot be reached.
 - **Recheck** — ask Ollama for the model list again. Use it after changing the URL or pulling a model.
 - **Keep alive** — off by default. Off tells Ollama to unload the model when the request finishes. On leaves Ollama's normal keep-alive behavior.
-- **Log** — on by default. On prints `[mossy-generate-neo]` lines to the Forge console, including the brief, the raw model output, and errors. Off silences those lines.
+- **Log** — off by default. On prints `[mossy-generate-neo]` lines to the Forge console, including the brief, the raw model output, and errors. Off silences those lines.
 - **Temperature** — sent to Ollama with the request. Range 0 to 2, step 0.1, default 0.7.
 - An error line under those controls. It shows while something failed and hides after the next successful action.
-- **Favorites** — a closed accordion with search and up to 20 saved prompts.
+- **Favorites** — a closed accordion with search, 20 prompts per page, and previous/next.
 
 ## Generate
 
 1. Start Ollama and confirm a model is listed. If the server is down at page load, the error line says `Ollama is not running`. Start it and press Recheck.
 2. Write a brief. The model is instructed to expand it into one MOSS-Image caption and a short title, and to return only `{"caption":"...","title":"..."}`.
-3. Press **Generate**.
+3. Press **Generate**. The button stays disabled until the request finishes, including when it fails.
 
 On success the caption replaces the whole positive prompt. The title is kept hidden and is used only when you save. The brief is not written into the prompt and is not saved.
 
@@ -56,15 +56,23 @@ The error line also shows `No model selected` when Generate is pressed with an e
 
 Each favorite gets an id of the form `YYYYMMDD-HHMMSS`. A second save in the same second becomes `YYYYMMDD-HHMMSS-2`, then `-3`, and so on. The error line reports `Saved` plus that id.
 
-Open **Favorites** to see the newest 20. Each row shows the title, the first line of the prompt, and a delete button.
+Open **Favorites** to see the newest saved prompts, 20 per page. **Previous** and **Next** move between pages. The card list has a fixed height and scrolls inside it. Each row shows the title, the first line of the prompt, and a delete button. An empty list says `No favorites`.
 
 - Press the row to replace the positive prompt with the full saved prompt.
-- Press delete to remove that favorite. The row disappears and the error line says `Deleted`.
-- **Search** matches words in the title and the prompt. Each word matches from the start of a word, so `tea` matches `teapot`. Several words must all match. Press the button or Enter. A search made only of punctuation shows no rows.
-- **Clear** empties the search box and shows the newest 20 again.
+- Press delete to remove that favorite. The row disappears and the error line says `Deleted`. The page stays put, and steps back when that page no longer has rows.
+- **Search** matches words in the title and the prompt. Each word matches from the start of a word, so `tea` matches `teapot`. Several words must all match. Press the button or Enter. A search with no hits says `No matches`. A search made only of punctuation does the same.
+- **Clear** empties the search box and shows the newest page again.
+- **Save** and **Search** open the first page.
 
-Only 20 rows are shown. Older matches stay in the database and can show up in a later search. The database file is `extensions/mossy-generate-neo/data/favorites.sqlite`.
+The database file is `extensions/mossy-generate-neo/data/favorites.sqlite`.
 
 ## License
 
-Copyright (C) 2026 wrench1815. Licensed under the GNU Affero General Public License, version 3. See [LICENSE](LICENSE).
+Mossy Generate turns a short brief into a MOSS-Image caption and stores favorite prompts.
+Copyright (C) 2026 wrench1815
+
+This program is free software: you can redistribute it and/or modify it under the terms of the GNU Affero General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License along with this program. If not, see <https://www.gnu.org/licenses/>. The full text is in [LICENSE](LICENSE).
