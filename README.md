@@ -53,7 +53,7 @@ Under the positive prompt:
 ## Generate
 
 1. Start Ollama and confirm a model is listed. If the server is down at page load, the error line says `Ollama is not running`. Start it and press Recheck.
-2. Write a brief. Every model is told to expand it into one caption in this order: subject and action, appearance, setting, camera and framing, medium, lighting, materials, palette, mood. A short or tag-like brief still has to fill that sequence. The reply must be only `{"caption":"...","title":"..."}`.
+2. Write a brief. Every model is told to expand it into one caption in this order: subject and action, appearance, setting, camera and framing, medium, lighting, materials. A short or tag-like brief still has to fill that sequence. The reply must be only `{"caption":"...","title":"..."}`.
 3. Press **Generate**. The button stays disabled until the request finishes, including when it fails.
 
 On success the caption replaces the whole positive prompt. The title is kept hidden and is used only when you save. The brief is not written into the prompt and is not saved.
