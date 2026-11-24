@@ -21,7 +21,15 @@ EXTENSION_DIR = Path(__file__).resolve().parents[1]
 SKILL_PATH = EXTENSION_DIR / "skill" / "SKILL.md"
 DB_PATH = EXTENSION_DIR / "data" / "favorites.sqlite"
 OLLAMA = "http://127.0.0.1:11434"
-CAPTION_RULE = 'This call is caption-only and must output exactly {"caption":"...","title":"..."}. The title is a few words.'
+CAPTION_RULE = (
+    "Caption only. No layout, no boxes, no width or height. "
+    "The caption is the MOSS-Image positive prompt, in the order above. "
+    "Explain every fact the brief gives, and add the relevant context around that fact. "
+    "If the brief has no lighting, add lighting that reveals those facts. "
+    "Do not replace a provided fact with a different one. "
+    "A grammar-only rewrite of the brief is wrong. "
+    'Output exactly {"caption":"...","title":"..."} and nothing else. The title is a few words.'
+)
 REFRESH_ICON = "\U0001f504"
 DELETE_ICON = "\U0001f5d1\ufe0f"
 PAGE_SIZE = 20

@@ -38,7 +38,7 @@ Nothing is created at install time. The first time txt2img builds the box, the e
 
 Under the positive prompt:
 
-- **Brief** — the short request sent to the model.
+- **Brief** — the short request sent to the model. With [TagComplete Neo](https://github.com/eduardoabreu81/sd-webui-tagcomplete-neo) enabled, this box gets the same tag, embedding, and LoRA suggestions as the positive prompt. That uses TagComplete's **Active in third party textboxes** option, which is on by default. Without TagComplete, the box is plain text.
 - **Generate** — ask Ollama for a caption and write it into the positive prompt.
 - **Save** — store the current positive prompt as a favorite.
 - **Ollama** — base URL. A trailing slash is ignored. An empty field uses `http://127.0.0.1:11434`.
@@ -53,7 +53,7 @@ Under the positive prompt:
 ## Generate
 
 1. Start Ollama and confirm a model is listed. If the server is down at page load, the error line says `Ollama is not running`. Start it and press Recheck.
-2. Write a brief. The model is instructed to expand it into one MOSS-Image caption and a short title, and to return only `{"caption":"...","title":"..."}`.
+2. Write a brief. Every model is told to expand it into one caption in this order: subject and action, appearance, setting, camera and framing, medium, lighting, materials, palette, mood. A short or tag-like brief still has to fill that sequence. The reply must be only `{"caption":"...","title":"..."}`.
 3. Press **Generate**. The button stays disabled until the request finishes, including when it fails.
 
 On success the caption replaces the whole positive prompt. The title is kept hidden and is used only when you save. The brief is not written into the prompt and is not saved.

@@ -1,107 +1,37 @@
----
-name: moss-image-prompt-enhancer
-description: Expand an image-generation request into a detailed MOSS-Image caption or spatial layout, and compile a local JSON draft into a ready-to-paste prompt. Use for prompt enhancement, image composition and text placement; this skill does not generate images.
----
+# Caption
 
-# MOSS-Image Prompt Enhancer
+Write one MOSS-Image positive prompt. The caption is prose the image model draws from. Output JSON only.
 
-Turn the user's idea into a concrete image description. Target GPT-6-family
-agents with filesystem and shell tools. The agent makes creative decisions;
-the bundled Python tool handles coordinate arithmetic and serialization.
-No Echidna service, model API or third-party Python dependency is needed.
+Preserve the user's subjects, counts, relationships, medium, style, exclusions, and intended visible wording. Do not add people, objects, clothing, or a style they did not ask for. Resolve ordinary gaps in the caption. Do not ask questions. Do not invent factual event logistics or specifications as if the user supplied them.
 
-## Choose the deliverable
+Default to English. Follow a requested output language. Preserve visible text verbatim, including punctuation, capitalization, and line breaks. A quoted sentence in an instruction is not necessarily text to render.
 
-Honor an explicit request for a caption or Layout. Otherwise use a caption for
-ordinary scenes, photographs and illustrations. Use Layout when specific text
-placement, a poster, several panels, or controlled object relationships would
-benefit from bounding boxes. A detailed image does not automatically need Layout.
+Write the caption in this order. Fill every part with what the camera sees. Do not skip a part, and do not satisfy a part by repeating the brief:
 
-Preserve the user's subjects, counts, relationships, medium, style, exclusions
-and intended visible wording. Resolve ordinary creative gaps yourself; ask only
-when a missing decision would materially change the requested image. Do not
-invent factual event logistics or specifications as if the user supplied them.
+1. Subject and action. Who is present, how many, and the pose the body is holding.
+2. Appearance. Face, hair, skin, expression, and clothing, including how each garment fits, hangs, or presses.
+3. Setting. The space around the subject. If the brief names none, use a plain backdrop.
+4. Camera and framing. Distance, angle, and how much of the subject is in frame.
+5. Medium. The named style. Do not switch to a different style.
+6. Lighting. Direction, softness, and what it reveals on the provided facts. If the brief names a light, explain that light. If it names none, add one.
+7. Materials. How skin, fabric, and other surfaces look.
+8. Palette. Only colors the brief names, or the color of a material it names. Do not invent a wardrobe color to fill this part.
+9. Mood. Only the mood carried by a fact the brief already states, such as an expression. Do not add a new mood.
 
-Default to English for descriptive prose, following a requested output language
-when given. Preserve visible text verbatim in its original language, including
-punctuation, capitalization and requested line breaks. A quoted sentence in an
-instruction is not necessarily text to render: distinguish visible wording from
-reference material and constraints.
+Take every fact in the brief and write the visible explanation of that fact. A tag, a garment, a look, and a light each get that explanation. With that explanation, add the relevant context around the fact: how it sits with the other facts the user gave, such as how a garment follows the pose, where clothing presses into skin, or what a named light reveals on the named features. Context stays on the provided data. Do not use it to steer into a different garment, print, body detail, color, or style. Do not drop a fact to make room for one the user did not give. If the brief does not name a setting, color, or mood, leave that part plain. Lighting is the exception: when the brief has no light, add a light and say what it reveals on the subject, clothing, and skin the user named.
 
-## Develop the image
+A short brief, a tag list, or broken phrases still gets one explanation per fact. Keep the name of the garment or style while describing how it looks. A word such as "detailed skin" is a request to describe that surface. A caption that only fixes spelling and grammar is wrong. Avoid quality-tag lists, unrequested style changes, and notes about how the caption was written.
 
-Describe visible choices: subject and action, relevant appearance, setting,
-camera/framing, medium, lighting, materials, palette and mood. Add detail where
-it makes the requested image more specific. Avoid redundant quality tags,
-unrequested style changes, arbitrary word budgets and invisible process notes.
-Keep an explicit minimalist brief minimalist; develop a rich brief without
-turning it into a generic title/hero/footer template.
-Keep explanations of JSON, bounding-box annotations and conversion steps out of
-image-description fields; those are tool instructions, not depicted content.
+Do not write a layout, boxes, width, height, or coordinates.
 
-For designed images, compose the information and imagery together. Establish
-reading order, relative prominence, coherent groups and readable text at the
-chosen pixels. Write the intended copy rather than placeholders such as
-"headline here" or "some explanatory text". Do not import unrelated names,
-watermarks or copy from a reference. Use supplied references when useful; outside
-research is optional unless needed for factual accuracy or requested by the user.
+## Example
 
-## Caption
+Brief: `red ceramic teapot on a table, chipped spout, morning light`
 
-Write exactly `{"caption":"...","title":"..."}` and nothing else. The title is a few words. The caption is
-cohesive prose, with spatial relations in words and any visible wording quoted
-exactly. It may contain paragraphs; do not add coordinates or JSON-layout fields
-to a caption just to make it look structured.
+Each provided fact is explained in context. Red ceramic stays red ceramic. The chip stays a chip, and the morning light is described where it catches that chip. No new object or color is added.
 
-## Layout
+Caption: A single red ceramic teapot sits on a bare wooden table, spout angled toward the left of the frame. The glaze is glossy red ceramic, and a pale chip on the spout exposes the rough clay underneath. The tabletop is otherwise empty, with a plain wall behind it. The camera is level with the spout and close enough that the pot fills most of the frame. It is a straightforward photograph. Soft morning light comes from the left, catching the chip and the curve of the lid. The ceramic is smooth except at that broken edge. The color is the red of the ceramic against the bare wood. The mood is only the quiet of that morning light.
 
-Read [references/layout.md](references/layout.md) before writing a Layout draft.
-Write readable JSON with `summary`, a flat `items` array, concrete `width` and
-`height`, `bbox_coord_space="abs"` and `bbox_format="xyxy"`.
+## Output
 
-**Draft boxes use `[x_min,y_min,x_max,y_max]` in actual pixels, from the canvas
-top-left.** Keep x in `0..width` and y in `0..height`. Do not use normalized
-coordinates or manually center, reorder or quantize the boxes.
-
-Honor supplied dimensions. With only an aspect ratio, choose compatible pixel
-dimensions; without either, use 1024×1024 unless the requested medium suggests
-another shape. MOSS-Image dimensions must be positive multiples of 16. Do not
-silently change explicit dimensions that are incompatible; surface the conflict.
-Use the same width and height in the image-generation workflow.
-
-Use boxes for coherent visible units, splitting only when independent placement
-matters. Grouping should preserve content and relationships, not erase them.
-Natural occlusion and overlap are allowed. A box is a placement annotation,
-not an instruction to draw a border, panel or sticker. Describe appearance in
-captions and global treatment in `summary.caption`; let boxes agree with any
-spatial descriptions. Keep exact visible strings in text items' `text` fields.
-
-## Compile and deliver
-
-Save the draft to a user-appropriate working directory, then run the tool bundled
-beside this SKILL.md. Resolve the script path from the skill location, not the
-user's working directory:
-
-```bash
-python3 /path/to/moss-image-prompt-enhancer/scripts/compile_prompt.py \
-  draft.json --output prompt.txt
-```
-
-Use an actual path in the invocation. Keep the editable JSON draft and compiled
-output separate. Read the result and check the subject, exact text, intended
-geometry and chosen canvas before delivering. Fix validation errors in the draft
-and rerun; do not bypass a failed conversion by hand-writing centered JSON.
-
-For captions, the output is plain text. For Layout, it is one physical line of
-JSON with flat `items`, integer `abs_centralized` / `yxyx` boxes and no canvas
-metadata. The tool encloses fractional pixel edges before subtracting the center,
-matching Echidna's generation conversion. It rejects invalid or out-of-bounds
-boxes instead of silently clipping them. String newlines are escaped in the JSON
-while remaining actual newlines in the decoded text.
-
-Return the ready-to-paste prompt or a link to its file, and retain a link to the
-draft when useful for editing. For Layout also state the required width×height
-outside the prompt; the model prompt itself does not contain these dimensions.
-If showing Layout JSON inline, use the compiled output without reformatting it.
-Only the caption or compiled Layout belongs in MOSS-Image's positive prompt.
-Creating these files does not submit image generation or publish anything.
+Write exactly `{"caption":"...","title":"..."}` and nothing else. The title is a few words. The caption is the prose above. No markdown, no second JSON object, and no layout.
